@@ -21,11 +21,13 @@
     "dist"
   ],
   "dependencies": {
+    "@azure/msal-node": "^2.3.0",
     "@bothrs/util": "^3",
+    "axios": "^1.6.0",
     "connect-mongo": "^4",
     "debug": "^4",
     "express-session": "^1",
-    "passport-oauth2": "^1"
+    "mongodb": "^6.2.0"
   },
   "devDependencies": {
     "@types/debug": "^4.1.7",

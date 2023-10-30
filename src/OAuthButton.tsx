@@ -1,16 +1,11 @@
 import Button from 'payload/dist/admin/components/elements/Button'
-import React, { useEffect } from 'react'
+import React from 'react'
 
 export default function OAuthButton() {
-  useEffect(() => {
-    setTimeout(() => {
-      // window.location.href = '/a'
-    }, 2000)
-  }, [])
   return (
     <div style={{ marginBottom: 40 }}>
-      <Button el="anchor" url="/oauth2/authorize">
-        Sign in with oAuth
+      <Button el="anchor" url="/msal/authorize">
+        Sign in with Microsoft 365
       </Button>
     </div>
   )
