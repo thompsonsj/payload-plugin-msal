@@ -1,0 +1,44 @@
+{
+  "name": "msal",
+  "$schema": "../node_modules/nx/schemas/project-schema.json",
+  "sourceRoot": "msal/src",
+  "projectType": "library",
+  "targets": {
+    "build": {
+      "executor": "@nx/js:tsc",
+      "outputs": ["{options.outputPath}"],
+      "options": {
+        "outputPath": "dist/msal",
+        "main": "msal/src/index.ts",
+        "tsConfig": "msal/tsconfig.lib.json",
+        "assets": ["msal/*.md"]
+      }
+    },
+    "publish": {
+      "command": "node tools/scripts/publish.mjs msal {args.ver} {args.tag}",
+      "dependsOn": ["build"]
+    },
+    "lint": {
+      "executor": "@nx/eslint:lint",
+      "outputs": ["{options.outputFile}"],
+      "options": {
+        "lintFilePatterns": ["msal/**/*.ts", "msal/package.json"]
+      }
+    },
+    "test": {
+      "executor": "@nx/jest:jest",
+      "outputs": ["{workspaceRoot}/coverage/{projectRoot}"],
+      "options": {
+        "jestConfig": "msal/jest.config.ts",
+        "passWithNoTests": true
+      },
+      "configurations": {
+        "ci": {
+          "ci": true,
+          "codeCoverage": true
+        }
+      }
+    }
+  },
+  "tags": []
+}
