@@ -1,22 +1,10 @@
 {
-<<<<<<< Updated upstream
-  "name": "payload-plugin-oauth",
-  "version": "2.0.1",
-=======
   "name": "@payload-plugin-sso/source",
   "version": "0.0.0",
->>>>>>> Stashed changes
   "license": "MIT",
   "scripts": {},
   "private": true,
   "dependencies": {
-<<<<<<< Updated upstream
-    "@bothrs/util": "^3",
-    "connect-mongo": "^4",
-    "debug": "^4",
-    "express-session": "^1",
-    "passport-oauth2": "^1"
-=======
     "@payloadcms/bundler-webpack": "^1.0.5",
     "@payloadcms/db-mongodb": "^1.0.5",
     "@payloadcms/richtext-slate": "^1.1.0",
@@ -28,7 +16,6 @@
     "payload": "^2.0.11",
     "tsconfig-paths": "^4.2.0",
     "tslib": "^2.3.0"
->>>>>>> Stashed changes
   },
   "devDependencies": {
     "@nx/eslint": "17.0.2",
@@ -61,23 +48,7 @@
     "typescript": "~5.1.3",
     "verdaccio": "^5.0.4"
   },
-<<<<<<< Updated upstream
-  "peerDependencies": {
-    "passport": "^0.6",
-    "payload": "^2",
-    "react": "^18"
-  },
-  "author": "Thomas Ghysels <info@thomasg.be>",
-  "homepage": "https://github.com/thgh/payload-plugin-oauth",
-  "bugs": {
-    "url": "https://github.com/thgh/payload-plugin-oauth/issues"
-  },
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/thgh/payload-plugin-oauth"
-=======
   "nx": {
     "includedScripts": []
->>>>>>> Stashed changes
   }
 }
