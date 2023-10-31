@@ -1,5 +1,5 @@
 {
-  "name": "payload-plugin-oauth",
+  "name": "payload-plugin-msal",
   "version": "2.0.1",
   "license": "MIT",
   "main": "dist/index.js",
@@ -21,11 +21,13 @@
     "dist"
   ],
   "dependencies": {
+    "@azure/msal-node": "^2.3.0",
     "@bothrs/util": "^3",
-    "connect-mongo": "^4",
+    "axios": "^1.6.0",
+    "connect-mongo": "^5.1.0",
     "debug": "^4",
     "express-session": "^1",
-    "passport-oauth2": "^1"
+    "mongodb": "^6.2.0"
   },
   "devDependencies": {
     "@types/debug": "^4.1.7",
@@ -44,13 +46,19 @@
     "payload": "^2",
     "react": "^18"
   },
-  "author": "Thomas Ghysels <info@thomasg.be>",
-  "homepage": "https://github.com/thgh/payload-plugin-oauth",
+  "author": "Steven Thompson",
+  "contributors": [
+    {
+      "name": "Thomas Ghysels",
+      "email": "info@thomasg.be"
+    }
+  ],
+  "homepage": "https://github.com/thompsonsj/payload-plugin-msal",
   "bugs": {
-    "url": "https://github.com/thgh/payload-plugin-oauth/issues"
+    "url": "https://github.com/thompsonsj/payload-plugin-msal/issues"
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/thgh/payload-plugin-oauth"
+    "url": "https://github.com/thompsonsj/payload-plugin-msal"
   }
 }

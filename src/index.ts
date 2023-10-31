@@ -1,27 +1,23 @@
-import { str62 } from '@bothrs/util/random'
 import MongoStore from 'connect-mongo'
+import { User } from "payload/dist/auth"
 import session from 'express-session'
 import jwt from 'jsonwebtoken'
-import passport from 'passport'
-import OAuth2Strategy, { VerifyCallback } from 'passport-oauth2'
 import debug from 'debug'
-import payload from 'payload'
 import { Config } from 'payload/config'
+import { TextField } from 'payload/types'
+import OAuthButton from './OAuthButton'
+import type { MsalAccount, oAuthPluginOptions } from './types'
 import {
   Field,
   fieldAffectsData,
   fieldHasSubFields,
 } from 'payload/dist/fields/config/types'
-import { PaginatedDocs } from 'payload/dist/database/types'
+import { AuthProvider } from './auth/AuthProvider'
+import {generateMsalConfig } from './authConfig'
 import getCookieExpiration from 'payload/dist/utilities/getCookieExpiration'
-import { TextField } from 'payload/types'
-
-import OAuthButton from './OAuthButton'
-import type { oAuthPluginOptions } from './types'
+import { createOrUpdateUser } from './payload'
 
 export { OAuthButton, oAuthPluginOptions }
-
-interface User {}
 
 const log = debug('plugin:oauth')
 
@@ -60,30 +56,7 @@ const CLIENTSIDE = typeof session !== 'function'
  */
 export const oAuthPlugin =
   (options: oAuthPluginOptions) =>
-  (incoming: Config): Config => {
-    // Shorthands
-    const collectionSlug = options.userCollection?.slug || 'users'
-    const sub = options.subField?.name || 'sub'
-
-    // Spread the existing config
-    const config: Config = {
-      ...incoming,
-      collections: (incoming.collections || []).map((c) => {
-        // Let's track the oAuth id (sub)
-        if (
-          c.slug === collectionSlug &&
-          !c.fields.some((f) => (f as TextField).name === sub)
-        ) {
-          c.fields.push({
-            name: sub,
-            type: 'text',
-            admin: { readOnly: true },
-            access: { update: () => false },
-          })
-        }
-        return c
-      }),
-    }
+  (config: Config): Config => {
 
     return CLIENTSIDE
       ? oAuthPluginClient(config, options)
@@ -114,89 +87,21 @@ function oAuthPluginServer(
   incoming: Config,
   options: oAuthPluginOptions
 ): Config {
+  const msalConfig = generateMsalConfig(options);
+  const authProvider = new AuthProvider(msalConfig);
+
   // Shorthands
   const callbackPath =
     options.callbackPath ||
     (options.callbackURL && new URL(options.callbackURL).pathname) ||
-    '/oauth2/callback'
-  const authorizePath = options.authorizePath ?? '/oauth2/authorize'
+    '/msal/callback'
+  // step 1 - send user to msal
+  const authorizePath = options.authorizePath ?? '/msal/authorize'
+  // step 2 - msal calls redirect url
+  const redirectPath = options.redirectPath ||(options.redirectUrl && new URL(options.redirectUrl).pathname) || '/msal/redirect'
+  // step 3 - msal redirects to our route to assign a payload user
+  const successPath = options.successPath ||(options.successUrl && new URL(options.successUrl).pathname) || '/msal/success'
   const collectionSlug = (options.userCollection?.slug as 'users') || 'users'
-  const sub = options.subField?.name || 'sub'
-
-  // Passport strategy
-  if (options.clientID) {
-    const strategy = new OAuth2Strategy(options, async function (
-      accessToken: string,
-      refreshToken: string,
-      profile: {},
-      cb: VerifyCallback
-    ) {
-      let info: {
-        sub: string
-        email?: string
-        password?: string
-        name?: string
-      }
-      let user: User & { collection?: any; _strategy?: any }
-      let users: PaginatedDocs<User>
-      try {
-        // Get the userinfo
-        info = await options.userinfo?.(accessToken)
-        if (!info) throw new Error('Failed to get userinfo')
-
-        // Match existing user
-        users = await payload.find({
-          collection: collectionSlug,
-          where: { [sub]: { equals: info[sub as 'sub'] } },
-          showHiddenFields: true,
-        })
-
-        if (users.docs && users.docs.length) {
-          user = users.docs[0]
-          user.collection = collectionSlug
-          user._strategy = 'oauth2'
-        } else {
-          // Register new user
-          user = await payload.create({
-            collection: collectionSlug,
-            data: {
-              ...info,
-              // Stuff breaks when password is missing
-              password: info.password || str62(20),
-            },
-            showHiddenFields: true,
-          })
-          log('signin.user', user)
-          user.collection = collectionSlug
-          user._strategy = 'oauth2'
-        }
-
-        cb(null, user)
-      } catch (error: any) {
-        log('signin.fail', error.message, error.trace)
-        cb(error)
-      }
-    })
-
-    // Alternative?
-    // strategy.userProfile = async (accessToken, cb) => {
-    //   const user = await options.userinfo?.(accessToken)
-    //   if (!user) cb(new Error('Failed to get userinfo'))
-    //   else cb(null, user)
-    // }
-
-    passport.use(strategy)
-  } else {
-    console.warn('No client id, oauth disabled')
-  }
-  // passport.serializeUser((user: Express.User, done) => {
-  passport.serializeUser((user: any, done) => {
-    done(null, user.id)
-  })
-  passport.deserializeUser(async (id: string, done) => {
-    const ok = await payload.findByID({ collection: collectionSlug, id })
-    done(null, ok)
-  })
 
   return {
     ...incoming,
@@ -212,7 +117,7 @@ function oAuthPluginServer(
               ...config.resolve?.alias,
               'connect-mongo': false,
               'express-session': false,
-              'passport-oauth2': false,
+              '@azure/msal-node': false,
               jsonwebtoken: false,
               passport: false,
             },
@@ -225,43 +130,50 @@ function oAuthPluginServer(
         path: authorizePath,
         method: 'get',
         root: true,
-        handler: passport.authenticate('oauth2'),
+        handler: authProvider.login({
+          scopes: [],
+          redirectUri: options.redirectUrl,
+          successRedirect: options.successUrl,
+        }),
       },
       {
-        path: callbackPath,
+        path: '/msal/test',
         method: 'get',
         root: true,
-        handler: session(
-          options.sessionOptions ?? {
-            resave: false,
-            saveUninitialized: false,
-            secret:
-              process.env.PAYLOAD_SECRET ||
-              log('Missing process.env.PAYLOAD_SECRET') ||
-              'unsafe',
-            store: options.databaseUri
-              ? MongoStore.create({ mongoUrl: options.databaseUri })
-              : undefined,
-          }
-        ),
+        async handler(req, res, next) {
+          // Get the Mongoose user
+          //const collectionConfig = payload.collections[collectionSlug].config
+          res.setHeader('Content-Type', 'application/json');
+          res.send({ collectionSlug, payload: req.payload.collections });
+        }
       },
       {
-        path: callbackPath,
-        method: 'get',
+        path: redirectPath,
+        method: 'post',
         root: true,
-        handler: passport.authenticate('oauth2', { failureRedirect: '/' }),
+        handler: authProvider.handleRedirect()
       },
       {
-        path: callbackPath,
-        method: 'get',
+        path: redirectPath,
+        method: 'post',
         root: true,
         async handler(req, res) {
           // Get the Mongoose user
-          const collectionConfig = payload.collections[collectionSlug].config
+          const collectionConfig = req.payload.collections[collectionSlug].config
 
           // Sanitize the user object
           // let user = userDoc.toJSON({ virtuals: true })
-          let user = JSON.parse(JSON.stringify(req.user))
+          const currentUser = await createOrUpdateUser({
+            account: (req.session as any).account,
+            payload: req.payload,
+            options
+          })
+          console.log('currentUser', currentUser, 'account', (req.session as any).account)
+          if (!currentUser) {
+            return
+          }
+
+          let user: User = currentUser
 
           // Decide which user fields to include in the JWT
           const fieldsToSign = collectionConfig.fields.reduce(
@@ -292,12 +204,12 @@ function oAuthPluginServer(
           )
 
           // Sign the JWT
-          const token = jwt.sign(fieldsToSign, payload.secret, {
+          const token = jwt.sign(fieldsToSign, req.payload.secret, {
             expiresIn: collectionConfig.auth.tokenExpiration,
           })
 
           // Set cookie
-          res.cookie(`${payload.config.cookiePrefix}-token`, token, {
+          res.cookie(`${req.payload.config.cookiePrefix}-token`, token, {
             path: '/',
             httpOnly: true,
             expires: getCookieExpiration(collectionConfig.auth.tokenExpiration),
@@ -309,7 +221,7 @@ function oAuthPluginServer(
           // Redirect to admin dashboard
           res.redirect('/admin')
         },
-      },
+      }
     ]),
   }
 }
